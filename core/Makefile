@@ -350,7 +350,9 @@ endif # BOARD_USES_MKIMAGE != true
 
 
 
-ifneq ($(strip $(TARGET_NO_KERNEL)),true)
+#feq (,$(filter true, $(TARGET_NO_KERNEL) $(TARGET_NO_RECOVERY) $(BUILD_TINY_ANDROID)))
+#ifneq ($(strip $(TARGET_NO_KERNEL)),true)
+ifeq (,$(filter true, $(TARGET_NO_KERNEL) $(TARGET_RAMDISK_IS_RECOVERY)))
 
 # -----------------------------------------------------------------
 # the boot image, which is a collection of other images.
@@ -711,20 +713,24 @@ $(RECOVERY_INSTALL_OTA_KEYS): $(OTA_PUBLIC_KEYS) $(DUMPKEY_JAR)
 
 ifneq ($(BOARD_USES_MKIMAGE),true)
 
+ifneq ($(TARGET_RAMDISK_IS_RECOVERY), TRUE)
+RECOVERY_EXTRA_DEPS +=  \
+		$(recovery_kernel)
+endif
 $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKBOOTIMG) $(MINIGZIP) \
 		$(INTERNAL_RECOVERY_FILES) \
 		$(INSTALLED_RAMDISK_TARGET) \
-		$(INSTALLED_BOOTIMAGE_TARGET) \
 		$(recovery_binary) \
-		$(recovery_initrc) $(recovery_kernel) \
+		$(recovery_initrc) \
 		$(INSTALLED_2NDBOOTLOADER_TARGET) \
 		$(recovery_build_prop) $(recovery_resource_deps) \
 		$(recovery_fstab) \
-		$(RECOVERY_INSTALL_OTA_KEYS)
+		$(RECOVERY_INSTALL_OTA_KEYS) \
+		$(RECOVERY_EXTRA_DEPS)
 	@echo ----- Making recovery image ------
 	mkdir -p $(TARGET_RECOVERY_OUT)
 	mkdir -p $(TARGET_RECOVERY_ROOT_OUT)
-ifneq ($(BOARD_RAMDISK_IS_RECOVERY),true)
+ifneq ($(TARGET_RAMDISK_IS_RECOVERY),true)
 	mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/etc
 else
 	mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/misc
@@ -732,11 +738,11 @@ endif
 	mkdir -p $(TARGET_RECOVERY_ROOT_OUT)/tmp
 	echo Copying baseline ramdisk...
 	cp -R $(TARGET_ROOT_OUT) $(TARGET_RECOVERY_OUT)
-ifneq ($(BOARD_RAMDISK_IS_RECOVERY),true)
+ifneq ($(TARGET_RAMDISK_IS_RECOVERY),true)
 	rm $(TARGET_RECOVERY_ROOT_OUT)/init*.rc
 endif
 	echo Modifying ramdisk contents...
-ifneq ($(BOARD_RAMDISK_IS_RECOVERY),true)
+ifneq ($(TARGET_RAMDISK_IS_RECOVERY),true)
 	cp -f $(recovery_initrc) $(TARGET_RECOVERY_ROOT_OUT)/
 	rm -f $(TARGET_RECOVERY_ROOT_OUT)/init.*.rc
 endif
@@ -745,7 +751,7 @@ endif
 	cp -rf $(recovery_resources_common) $(TARGET_RECOVERY_ROOT_OUT)/
 	$(foreach item,$(recovery_resources_private), \
 	  cp -rf $(item) $(TARGET_RECOVERY_ROOT_OUT)/)
-ifneq ($(BOARD_RAMDISK_IS_RECOVERY),true)
+ifneq ($(TARGET_RAMDISK_IS_RECOVERY),true)
 	$(foreach item,$(recovery_fstab), \
 	  cp -f $(item) $(TARGET_RECOVERY_ROOT_OUT)/etc/recovery.fstab)
 else
@@ -756,7 +762,9 @@ endif
 	cat $(INSTALLED_DEFAULT_PROP_TARGET) $(recovery_build_prop) \
 	        > $(TARGET_RECOVERY_ROOT_OUT)/default.prop
 	$(MKBOOTFS) $(TARGET_RECOVERY_ROOT_OUT) | $(MINIGZIP) > $(recovery_ramdisk)
+ifneq ($(TARGET_RAMDISK_IS_RECOVERY),true)
 	$(MKBOOTIMG) $(INTERNAL_RECOVERYIMAGE_ARGS) --output $@
+endif
 	@echo ----- Made recovery image -------- $@
 	$(hide) $(call assert-max-image-size,$@,$(BOARD_RECOVERYIMAGE_PARTITION_SIZE),raw)
 
@@ -764,16 +772,20 @@ else
 
 INTERNAL_RECOVERYIMAGE_ARGS := -A ARM -O Linux -T RAMDisk -C gzip -n Image -d $(recovery_ramdisk)
 
+ifneq ($(TARGET_RAMDISK_IS_RECOVERY), TRUE)
+RECOVERY_EXTRA_DEPS +=  \
+		$(recovery_kernel)
+endif
 $(INSTALLED_RECOVERYIMAGE_TARGET): $(MKBOOTFS) $(MKIMAGE) $(MINIGZIP) \
 		$(INTERNAL_RECOVERY_FILES) \
 		$(INSTALLED_RAMDISK_TARGET) \
-		$(INSTALLED_BOOTIMAGE_TARGET) \
 		$(recovery_binary) \
-		$(recovery_initrc) $(recovery_kernel) \
+		$(recovery_initrc) \
 		$(INSTALLED_2NDBOOTLOADER_TARGET) \
 		$(recovery_build_prop) $(recovery_resource_deps) \
 		$(recovery_fstab) \
-		$(RECOVERY_INSTALL_OTA_KEYS)
+		$(RECOVERY_INSTALL_OTA_KEYS) \
+		$(RECOVERY_EXTRA_DEPS)
 	@echo ----- Making recovery image ------
 	mkdir -p $(TARGET_RECOVERY_OUT)
 	mkdir -p $(TARGET_RECOVERY_ROOT_OUT)
